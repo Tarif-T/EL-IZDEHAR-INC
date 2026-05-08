@@ -870,17 +870,10 @@ import { createServer as createViteServer, createLogger } from "vite";
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "path";
-import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import path from "node:path";
 var vite_config_default = defineConfig({
   plugins: [
-    react(),
-    runtimeErrorOverlay(),
-    ...process.env.NODE_ENV !== "production" && process.env.REPL_ID !== void 0 ? [
-      await import("@replit/vite-plugin-cartographer").then(
-        (m) => m.cartographer()
-      )
-    ] : []
+    react()
   ],
   resolve: {
     alias: {
@@ -1091,6 +1084,21 @@ function responseSizeMonitor() {
 }
 
 // server/index.ts
+function getAllowedOrigins() {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+  const configuredOrigins = process.env.CORS_ORIGINS;
+  if (configuredOrigins) {
+    return configuredOrigins.split(",").map((origin) => origin.trim()).filter(Boolean);
+  }
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+  return [
+    process.env.FRONTEND_URL,
+    vercelUrl,
+    "https://elizdehar.com"
+  ].filter((origin) => Boolean(origin));
+}
 function createApp() {
   const app = express2();
   app.use(helmet({
@@ -1106,7 +1114,7 @@ function createApp() {
     crossOriginEmbedderPolicy: false
   }));
   app.use(cors({
-    origin: process.env.NODE_ENV === "production" ? ["https://elizdehar.replit.app", "https://elizdehar.com"] : true,
+    origin: getAllowedOrigins(),
     credentials: true
   }));
   app.use(adaptiveCompression());
@@ -1128,7 +1136,7 @@ async function startServer() {
     } else {
       serveStatic(app);
     }
-    const port = parseInt(process.env.PORT || "5000", 10);
+    const port = Number.parseInt(process.env.PORT || "5000", 10);
     const host = "0.0.0.0";
     server.listen(port, host, () => {
       log(`\u{1F680} ELIZDEHAR Inc. server running on http://${host}:${port}`);
@@ -1147,4 +1155,4 @@ async function startServer() {
     process.exit(1);
   }
 }
-startServer();
+await startServer();

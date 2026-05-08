@@ -9,6 +9,27 @@ import { errorHandler } from "./middleware/errorHandler";
 import { compressionConfig, adaptiveCompression, responseSizeMonitor } from "./middleware/compression";
 import { rateLimiters } from "./middleware/rateLimiter";
 
+function getAllowedOrigins(): string[] | true {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+
+  const configuredOrigins = process.env.CORS_ORIGINS;
+  if (configuredOrigins) {
+    return configuredOrigins
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+  }
+
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+  return [
+    process.env.FRONTEND_URL,
+    vercelUrl,
+    "https://elizdehar.com",
+  ].filter((origin): origin is string => Boolean(origin));
+}
+
 /**
  * Initialize and configure the Express application
  */
@@ -31,9 +52,7 @@ function createApp(): express.Express {
 
   // CORS configuration
   app.use(cors({
-    origin: process.env.NODE_ENV === "production" 
-      ? ["https://elizdehar.replit.app", "https://elizdehar.com"]
-      : true,
+    origin: getAllowedOrigins(),
     credentials: true,
   }));
 
@@ -74,7 +93,7 @@ async function startServer(): Promise<void> {
     }
 
     // Start server
-    const port = parseInt(process.env.PORT || "5000", 10);
+    const port = Number.parseInt(process.env.PORT || "5000", 10);
     const host = "0.0.0.0";
 
     server.listen(port, host, () => {
@@ -99,4 +118,4 @@ async function startServer(): Promise<void> {
 }
 
 // Start the application
-startServer();
+await startServer();

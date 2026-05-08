@@ -38,11 +38,11 @@
 
 ## 🎯 Deployment Options
 
-### Option 1: Replit Deployment (Recommended)
-- Use the "Deploy" button in Replit interface
-- Automatic domain and SSL certificate management
-- Zero configuration required
-- Instant global CDN deployment
+### Option 1: Vercel Frontend Demo (Recommended for client review)
+- Deploy the static frontend for a fast live demo
+- Automatic HTTPS and CDN included
+- Best for design review and content walkthroughs
+- Use a separate backend only if you need live form submissions or database features
 
 ### Option 2: Docker Deployment
 ```bash
@@ -74,7 +74,7 @@ CNAME www.elizdehar.com    -> elizdehar.com
 ```
 
 ### SSL Certificate
-- Automatic with Replit deployment
+- Automatic with Vercel or Render deployment
 - Manual setup required for custom servers
 - Let's Encrypt recommended for free SSL
 
@@ -120,7 +120,7 @@ The ELIZDEHAR Inc. website is fully prepared for hosting and deployment with:
 - ✅ Database integration and contact management
 - ✅ Advanced monitoring and analytics
 
-**Recommended Action**: Deploy using Replit's one-click deployment for immediate worldwide availability with automatic SSL and CDN optimization.
+**Recommended Action**: Deploy the frontend to Vercel for client review, or deploy the full app to Render if you need backend and database features.
 
 ---
 *Report Generated: January 2025*
