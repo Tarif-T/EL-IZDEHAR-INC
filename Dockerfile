@@ -1,20 +1,16 @@
 # Multi-stage Docker build for production
 FROM node:20-alpine AS base
 
-# Install dependencies only when needed
-FROM base AS deps
+# Build the application
+FROM base AS builder
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-# Copy package files
+# Install full dependency tree required for build tools (vite/esbuild/ts)
 COPY package*.json ./
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci
 
-# Build the application
-FROM base AS builder
-WORKDIR /app
 COPY . .
-COPY --from=deps /app/node_modules ./node_modules
 
 # Build the application
 RUN npm run build
@@ -32,8 +28,10 @@ RUN adduser --system --uid 1001 nextjs
 
 # Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+COPY --from=builder --chown=nextjs:nodejs /app/package*.json ./
+
+# Install only production dependencies in the final image
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Create necessary directories
 RUN mkdir -p /app/logs && chown nextjs:nodejs /app/logs
@@ -47,4 +45,4 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:5000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"
 
-CMD ["node", "dist/server/index.js"]
+CMD ["node", "dist/index.js"]
