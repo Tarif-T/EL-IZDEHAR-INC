@@ -10,7 +10,7 @@ import express2 from "express";
 import cors from "cors";
 import helmet from "helmet";
 
-// server/routes.t
+// server/routes.ts
 import { createServer } from "http";
 
 // server/controllers/contactController.ts
