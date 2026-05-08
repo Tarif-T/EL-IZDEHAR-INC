@@ -1,0 +1,376 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@100;200;300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(95, 15%, 25%);
+  --muted: hsl(80, 18%, 82%);
+  --muted-foreground: hsl(95, 8%, 37%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(95, 15%, 25%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(95, 15%, 25%);
+  --border: hsl(80, 18%, 82%);
+  --input: hsl(80, 18%, 82%);
+  --primary: hsl(95, 45%, 50%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(95, 55%, 48%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --accent: hsl(80, 18%, 82%);
+  --accent-foreground: hsl(95, 15%, 25%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(95, 45%, 50%);
+  --radius: 1rem;
+  --chart-1: hsl(95, 45%, 50%);
+  --chart-2: hsl(95, 55%, 48%);
+  --chart-3: hsl(95, 15%, 25%);
+  --chart-4: hsl(80, 18%, 82%);
+  --chart-5: hsl(95, 8%, 37%);
+}
+
+.dark {
+  --background: hsl(150, 16%, 8%);
+  --foreground: hsl(90, 24%, 94%);
+  --muted: hsl(148, 12%, 16%);
+  --muted-foreground: hsl(88, 14%, 76%);
+  --popover: hsl(148, 14%, 12%);
+  --popover-foreground: hsl(90, 24%, 94%);
+  --card: hsl(148, 14%, 12%);
+  --card-foreground: hsl(90, 24%, 94%);
+  --border: hsl(148, 10%, 24%);
+  --input: hsl(148, 10%, 24%);
+  --primary: hsl(95, 45%, 50%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(95, 55%, 48%);
+  --secondary-foreground: hsl(0, 0%, 100%);
+  --accent: hsl(148, 12%, 18%);
+  --accent-foreground: hsl(90, 24%, 94%);
+  --destructive: hsl(0, 84.2%, 60.2%);
+  --destructive-foreground: hsl(60, 9.1%, 97.8%);
+  --ring: hsl(95, 45%, 50%);
+  --chart-1: hsl(95, 45%, 50%);
+  --chart-2: hsl(95, 55%, 48%);
+  --chart-3: hsl(90, 24%, 94%);
+  --chart-4: hsl(80, 18%, 82%);
+  --chart-5: hsl(95, 8%, 37%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    font-family: 'Inter', 'IBM Plex Sans Arabic', sans-serif;
+    /* Enhanced text rendering for better Arabic display */
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+
+  [dir="rtl"] body {
+    font-family: 'IBM Plex Sans Arabic', 'Inter', sans-serif;
+    /* Better Arabic text rendering */
+    font-feature-settings: "liga" 1, "kern" 1;
+    font-variant-ligatures: contextual;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    background: var(--background);
+  }
+
+  /* RTL Support */
+  [dir="rtl"] {
+    direction: rtl;
+  }
+
+  [dir="rtl"] .space-x-2 > * + * {
+    margin-left: 0;
+    margin-right: 0.5rem;
+  }
+
+  [dir="rtl"] .space-x-4 > * + * {
+    margin-left: 0;
+    margin-right: 1rem;
+  }
+
+  [dir="rtl"] .ml-2 {
+    margin-left: 0;
+    margin-right: 0.5rem;
+  }
+
+  [dir="rtl"] .ml-3 {
+    margin-left: 0;
+    margin-right: 0.75rem;
+  }
+
+  [dir="rtl"] .ml-4 {
+    margin-left: 0;
+    margin-right: 1rem;
+  }
+
+  [dir="rtl"] .mr-2 {
+    margin-right: 0;
+    margin-left: 0.5rem;
+  }
+
+  [dir="rtl"] .mr-4 {
+    margin-right: 0;
+    margin-left: 1rem;
+  }
+
+  [dir="rtl"] .text-left {
+    text-align: right;
+  }
+
+  [dir="rtl"] .text-right {
+    text-align: left;
+  }
+  
+  /* Force RTL text alignment for Arabic content */
+  [dir="rtl"] .text-center {
+    text-align: center;
+  }
+  
+  /* Additional RTL alignment fixes */
+  [dir="rtl"] * {
+    text-align: right;
+  }
+  
+  [dir="rtl"] .text-center,
+  [dir="rtl"] .text-center * {
+    text-align: center !important;
+  }
+  
+  /* Professional Arabic Typography Enhancement */
+  .arabic-text {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-feature-settings: "liga" 1, "kern" 1, "calt" 1;
+    font-variant-ligatures: contextual;
+    text-rendering: optimizeLegibility;
+    line-height: 1.7; /* Better line spacing for Arabic */
+    letter-spacing: 0.01em; /* Subtle letter spacing for readability */
+    text-align: right;
+    direction: rtl;
+  }
+  
+  /* Enhanced Arabic headings */
+  .arabic-heading {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-weight: 600;
+    line-height: 1.4;
+    letter-spacing: -0.02em; /* Tighter spacing for headings */
+    text-rendering: optimizeLegibility;
+    text-align: right;
+    direction: rtl;
+  }
+  
+  /* Corporate Arabic body text */
+  .arabic-body {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-weight: 400;
+    line-height: 1.8; /* Generous line height for readability */
+    letter-spacing: 0.005em;
+    word-spacing: 0.1em; /* Better word separation in Arabic */
+    text-align: right;
+    direction: rtl;
+  }
+  
+  /* Professional Arabic subtitle styling */
+  .arabic-subtitle {
+    font-family: 'IBM Plex Sans Arabic', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    text-align: right;
+    direction: rtl;
+  }
+}
+
+@layer components {
+  .hero-gradient {
+    background: linear-gradient(135deg, hsl(95, 45%, 50%) 0%, hsl(95, 55%, 48%) 100%);
+  }
+  
+  .modern-gradient {
+    background: linear-gradient(135deg, 
+      hsl(95, 45%, 50%) 0%, 
+      hsl(95, 55%, 48%) 50%, 
+      hsl(95, 45%, 50%) 100%);
+    background-size: 200% 200%;
+    animation: gradientShift 4s ease infinite;
+  }
+  
+  .glass-effect {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .dark .glass-effect {
+    background: color-mix(in srgb, var(--card) 82%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  }
+  
+  .section-padding {
+    @apply py-20 lg:py-24;
+  }
+  
+  .container-padding {
+    @apply px-4 sm:px-6 lg:px-8;
+  }
+  
+  .card-3d {
+    transform-style: preserve-3d;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .card-3d:hover {
+    transform: rotateY(5deg) rotateX(5deg) translateZ(20px);
+  }
+  
+  .glow-effect {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .glow-effect::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s;
+  }
+  
+  .glow-effect:hover::before {
+    left: 100%;
+  }
+  
+  .floating-animation {
+    animation: float 3s ease-in-out infinite;
+  }
+  
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite alternate;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .dark :is(section, div).bg-white,
+  .dark :is(section, div).bg-gray-50 {
+    background-color: var(--background);
+  }
+
+  .dark :is(section, div).bg-slate-50,
+  .dark :is(a, div).bg-slate-100 {
+    background-color: var(--muted);
+  }
+
+  .dark .text-slate-900,
+  .dark .text-slate-800,
+  .dark .text-gray-900 {
+    color: var(--foreground);
+  }
+
+  .dark .text-slate-700,
+  .dark .text-slate-600,
+  .dark .text-gray-600,
+  .dark .text-gray-500 {
+    color: var(--muted-foreground);
+  }
+
+  .dark .border-slate-800 {
+    border-color: var(--border);
+  }
+}
+
+@keyframes gradientShift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 20px rgba(107, 183, 75, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 40px rgba(107, 183, 75, 0.6), 0 0 60px rgba(107, 183, 75, 0.3);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(var(--translate-y, 0));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(var(--translate-y, 0));
+  }
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.6s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s ease-out forwards;
+}
+
+@keyframes pulseZoom {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.animate-pulse-zoom {
+  animation: pulseZoom 4s ease-in-out infinite;
+}
