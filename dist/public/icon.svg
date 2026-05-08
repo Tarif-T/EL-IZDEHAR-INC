@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">ELIZDEHAR icon</title>
+  <rect width="128" height="128" rx="28" fill="#111814"/>
+  <path d="M65 83C51 66 51 45 65 24c14 21 14 42 0 59Z" fill="#6dbb45"/>
+  <path d="M55 79C36 77 22 63 16 40c23 2 38 15 39 39Z" fill="#4f9f39"/>
+  <path d="M74 79c1-24 16-37 39-39-6 23-20 37-39 39Z" fill="#8bcf58"/>
+  <path d="M36 91h56" stroke="#eaf4e6" stroke-width="8" stroke-linecap="round"/>
+</svg>
