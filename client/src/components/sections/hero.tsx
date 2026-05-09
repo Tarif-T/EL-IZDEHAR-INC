@@ -42,7 +42,7 @@ export default function Hero() {
 
   return (
     <section
-      className="relative min-h-[70vh] overflow-hidden bg-gradient-to-br from-white via-gray-50 to-green-50 dark:from-background dark:via-muted/40 dark:to-background"
+      className="relative min-h-[70vh] overflow-x-hidden bg-gradient-to-br from-white via-gray-50 to-green-50 dark:from-background dark:via-muted/40 dark:to-background"
       data-testid="hero-section"
     >
       {/* Circular Wave Pattern Background */}
@@ -128,11 +128,13 @@ export default function Hero() {
           {/* Right Column - Image with Floating Services */}
           <div className="relative animate-slide-in-up h-full flex flex-col justify-center" style={{ animationDelay: '0.3s' }}>
             {/* Main Image */}
-            <div className="relative rounded-full overflow-hidden aspect-square">
+            <div className="hero-image-frame relative aspect-square rounded-full">
               <img
                 src={heroImage}
                 alt="Unity and Growth - ELIZDEHAR Inc."
-                className="w-full h-full object-cover animate-pulse-zoom"
+                className="hero-image-media animate-pulse-zoom"
+                loading="eager"
+                decoding="async"
               />
             </div>
 

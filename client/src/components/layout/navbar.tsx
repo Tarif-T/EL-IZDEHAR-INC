@@ -49,11 +49,11 @@ export default function Navbar() {
               alt="ELIZDEHAR Inc." 
               className="h-12 w-12 object-contain group-hover:scale-105 transition-transform duration-300"
             />
-            <div className={`hidden sm:block font-bold text-foreground group-hover:text-primary transition-colors text-[20px] ${isRTL ? 'mr-3' : 'ml-3'}`}>El izdehar Inc.</div>
+            <div className={`hidden sm:block whitespace-nowrap font-bold text-foreground group-hover:text-primary transition-colors text-[20px] ${isRTL ? 'mr-3' : 'ml-3'}`}>El izdehar Inc.</div>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className={`hidden md:flex items-center ${isRTL ? 'space-x-reverse space-x-4' : 'space-x-4'}`}>
+          <div className={`hidden lg:flex items-center ${isRTL ? 'space-x-reverse space-x-4' : 'space-x-4'}`}>
             <div className={`flex ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
               {navigationItems.map((item) => (
                 <Link
@@ -76,7 +76,7 @@ export default function Navbar() {
           </div>
 
           {/* Tablet Language Switcher (visible on tablet but hidden on mobile) */}
-          <div className={`hidden sm:flex md:hidden items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
+          <div className={`hidden sm:flex lg:hidden items-center ${isRTL ? 'space-x-reverse space-x-2' : 'space-x-2'}`}>
             <ThemeToggle />
             <LanguageSwitcher />
           </div>
@@ -87,7 +87,7 @@ export default function Navbar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden card-3d hover:bg-primary/10 hover:scale-110 transition-all duration-300"
+                className="lg:hidden card-3d hover:bg-primary/10 hover:scale-110 transition-all duration-300"
                 data-testid="mobile-menu-trigger"
               >
                 <Menu className="h-6 w-6" />
