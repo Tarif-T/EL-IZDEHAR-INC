@@ -4,11 +4,399 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// server/index.ts
+// server/app.ts
 import "dotenv/config";
-import express2 from "express";
+import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+
+// server/middleware/requestLogger.ts
+var requestLogger = (req, res, next) => {
+  const start = Date.now();
+  const path3 = req.path;
+  let capturedJsonResponse = void 0;
+  const originalResJson = res.json;
+  res.json = function(bodyJson, ...args) {
+    capturedJsonResponse = bodyJson;
+    return originalResJson.apply(res, [bodyJson, ...args]);
+  };
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    if (path3.startsWith("/api")) {
+      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+      const userAgent = req.get("User-Agent");
+      if (userAgent) {
+        logLine += ` | ${userAgent.substring(0, 50)}`;
+      }
+      if (capturedJsonResponse) {
+        const summary = capturedJsonResponse.success ? "\u2713" : "\u2717";
+        logLine += ` | ${summary} ${capturedJsonResponse.message}`;
+      }
+      if (logLine.length > 150) {
+        logLine = logLine.slice(0, 149) + "\u2026";
+      }
+      console.log(logLine);
+    }
+  });
+  next();
+};
+
+// server/middleware/compression.ts
+import compression from "compression";
+var compressionConfig = compression({
+  // Only compress responses larger than 1kb
+  threshold: 1024,
+  // Compression level (1-9, 6 is default)
+  level: 6,
+  // Memory level (1-9, 8 is default)
+  memLevel: 8,
+  // Custom filter function
+  filter: (req, res) => {
+    if (req.headers["x-no-compression"]) {
+      return false;
+    }
+    if (res.getHeader("content-encoding")) {
+      return false;
+    }
+    const rawContentType = res.getHeader("content-type");
+    const contentType = Array.isArray(rawContentType) ? rawContentType.join(";") : String(rawContentType || "");
+    if (contentType.includes("text/event-stream")) {
+      return false;
+    }
+    if (contentType) {
+      const skipTypes = [
+        "image/",
+        "video/",
+        "audio/",
+        "application/pdf",
+        "application/zip",
+        "application/gzip"
+      ];
+      if (skipTypes.some((type) => contentType.startsWith(type))) {
+        return false;
+      }
+    }
+    return compression.filter(req, res);
+  },
+  // Custom compression strategy
+  strategy: 0,
+  // Z_DEFAULT_STRATEGY equivalent
+  // Window bits (9-15, 15 is default)
+  windowBits: 15,
+  // Chunk size in bytes
+  chunkSize: 16 * 1024
+  // 16kb
+});
+function adaptiveCompression() {
+  return (req, res, next) => {
+    const acceptEncoding = req.headers["accept-encoding"] || "";
+    const supportsBrotli = acceptEncoding.includes("br");
+    const supportsGzip = acceptEncoding.includes("gzip");
+    const supportsDeflate = acceptEncoding.includes("deflate");
+    if (supportsBrotli) {
+      req.headers["x-preferred-compression"] = "br";
+    } else if (supportsGzip) {
+      req.headers["x-preferred-compression"] = "gzip";
+    } else if (supportsDeflate) {
+      req.headers["x-preferred-compression"] = "deflate";
+    }
+    const startTime = Date.now();
+    const originalSend = res.send;
+    res.send = function(body) {
+      const compressionTime = Date.now() - startTime;
+      res.setHeader("X-Compression-Time", compressionTime.toString());
+      if (res.getHeader("content-encoding")) {
+        const originalSize = Buffer.byteLength(Buffer.isBuffer(body) ? body : String(body));
+        const compressedSize = parseInt(res.getHeader("content-length")) || originalSize;
+        const ratio = ((originalSize - compressedSize) / originalSize * 100).toFixed(2);
+        console.log(`Compression: ${originalSize} \u2192 ${compressedSize} bytes (${ratio}% reduction) in ${compressionTime}ms`);
+      }
+      return originalSend.call(this, body);
+    };
+    next();
+  };
+}
+function responseSizeMonitor() {
+  return (req, res, next) => {
+    const originalSend = res.send;
+    res.send = function(body) {
+      const size = Buffer.byteLength(Buffer.isBuffer(body) ? body : String(body));
+      if (size > 1024 * 1024) {
+        console.warn(`Large response detected: ${req.method} ${req.path} - ${(size / 1024 / 1024).toFixed(2)}MB`);
+      }
+      res.setHeader("X-Response-Size", size.toString());
+      return originalSend.call(this, body);
+    };
+    next();
+  };
+}
+
+// server/utils/cache.ts
+import { LRUCache } from "lru-cache";
+var MemoryCache = class {
+  cache;
+  constructor(maxSize = 1e3, ttl = 5 * 60 * 1e3) {
+    this.cache = new LRUCache({
+      max: maxSize,
+      ttl
+    });
+  }
+  async get(key) {
+    return this.cache.get(key) || null;
+  }
+  async set(key, value, ttl) {
+    if (ttl) {
+      this.cache.set(key, value, { ttl });
+    } else {
+      this.cache.set(key, value);
+    }
+  }
+  async del(key) {
+    this.cache.delete(key);
+  }
+  async exists(key) {
+    return this.cache.has(key);
+  }
+  async clear() {
+    this.cache.clear();
+  }
+  // Additional methods for monitoring
+  size() {
+    return this.cache.size;
+  }
+  keys() {
+    return Array.from(this.cache.keys());
+  }
+};
+var CacheManager = class {
+  cache;
+  keyPrefix;
+  constructor(cache, keyPrefix = "elizdehar:") {
+    this.cache = cache;
+    this.keyPrefix = keyPrefix;
+  }
+  getKey(key) {
+    return `${this.keyPrefix}${key}`;
+  }
+  /**
+   * Get cached value with JSON parsing
+   */
+  async get(key) {
+    try {
+      const value = await this.cache.get(this.getKey(key));
+      return value ? JSON.parse(value) : null;
+    } catch (error) {
+      console.warn(`Cache get error for key ${key}:`, error);
+      return null;
+    }
+  }
+  /**
+   * Set cached value with JSON serialization
+   */
+  async set(key, value, ttl) {
+    try {
+      await this.cache.set(this.getKey(key), JSON.stringify(value), ttl);
+    } catch (error) {
+      console.warn(`Cache set error for key ${key}:`, error);
+    }
+  }
+  /**
+   * Delete cached value
+   */
+  async del(key) {
+    await this.cache.del(this.getKey(key));
+  }
+  /**
+   * Check if key exists
+   */
+  async exists(key) {
+    return await this.cache.exists(this.getKey(key));
+  }
+  /**
+   * Get or set cached value (cache-aside pattern)
+   */
+  async getOrSet(key, fetcher, ttl) {
+    let value = await this.get(key);
+    if (value === null) {
+      value = await fetcher();
+      await this.set(key, value, ttl);
+    }
+    return value;
+  }
+  /**
+   * Invalidate cache by pattern
+   */
+  async invalidatePattern(pattern) {
+    if (this.cache instanceof MemoryCache) {
+      const keys = this.cache.keys();
+      const matchingKeys = keys.filter((key) => key.includes(pattern));
+      for (const key of matchingKeys) {
+        await this.cache.del(key);
+      }
+    }
+  }
+  /**
+   * Warm up cache with data
+   */
+  async warmUp(data, ttl) {
+    const promises = Object.entries(data).map(
+      ([key, value]) => this.set(key, value, ttl)
+    );
+    await Promise.all(promises);
+  }
+};
+var memoryCache = new MemoryCache();
+var cacheManager = new CacheManager(memoryCache);
+
+// server/middleware/rateLimiter.ts
+var RateLimiter = class {
+  config;
+  constructor(config) {
+    this.config = {
+      message: "Too many requests, please try again later",
+      skipSuccessfulRequests: false,
+      skipFailedRequests: false,
+      keyGenerator: (req) => req.ip || "unknown",
+      ...config
+    };
+  }
+  middleware() {
+    return async (req, res, next) => {
+      const key = `rate_limit:${this.config.keyGenerator(req)}`;
+      const now = Date.now();
+      const windowStart = now - this.config.windowMs;
+      try {
+        let rateLimitInfo = await cacheManager.get(key);
+        if (!rateLimitInfo) {
+          rateLimitInfo = {
+            requests: [],
+            resetTime: now + this.config.windowMs
+          };
+        }
+        rateLimitInfo.requests = rateLimitInfo.requests.filter(
+          (timestamp2) => timestamp2 > windowStart
+        );
+        if (rateLimitInfo.requests.length >= this.config.maxRequests) {
+          const resetTime2 = Math.ceil(
+            (rateLimitInfo.resetTime - now) / 1e3
+          );
+          res.status(429).set({
+            "X-RateLimit-Limit": this.config.maxRequests.toString(),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": resetTime2.toString(),
+            "Retry-After": resetTime2.toString()
+          });
+          return res.json({
+            success: false,
+            message: this.config.message,
+            retryAfter: resetTime2
+          });
+        }
+        rateLimitInfo.requests.push(now);
+        await cacheManager.set(key, rateLimitInfo, this.config.windowMs);
+        const remaining = this.config.maxRequests - rateLimitInfo.requests.length;
+        const resetTime = Math.ceil(
+          (rateLimitInfo.resetTime - now) / 1e3
+        );
+        res.set({
+          "X-RateLimit-Limit": this.config.maxRequests.toString(),
+          "X-RateLimit-Remaining": remaining.toString(),
+          "X-RateLimit-Reset": resetTime.toString()
+        });
+        const originalSend = res.send;
+        const config = this.config;
+        res.send = function(body) {
+          const shouldSkip = res.statusCode < 400 && config.skipSuccessfulRequests || res.statusCode >= 400 && config.skipFailedRequests;
+          if (shouldSkip) {
+            rateLimitInfo.requests.pop();
+            cacheManager.set(key, rateLimitInfo, config.windowMs);
+          }
+          return originalSend.call(this, body);
+        };
+        next();
+      } catch (error) {
+        console.error("Rate limiter error:", error);
+        next();
+      }
+    };
+  }
+};
+var rateLimiters = {
+  // General API rate limiter
+  general: new RateLimiter({
+    windowMs: 15 * 60 * 1e3,
+    // 15 minutes
+    maxRequests: 100,
+    message: "Too many requests from this IP, please try again later"
+  }),
+  // Contact form rate limiter
+  contact: new RateLimiter({
+    windowMs: 60 * 60 * 1e3,
+    // 1 hour
+    maxRequests: 5,
+    message: "Too many contact form submissions, please try again in an hour",
+    skipFailedRequests: true
+  }),
+  // Auth rate limiter (if needed)
+  auth: new RateLimiter({
+    windowMs: 15 * 60 * 1e3,
+    // 15 minutes
+    maxRequests: 10,
+    message: "Too many authentication attempts, please try again later",
+    skipSuccessfulRequests: true
+  }),
+  // Health check rate limiter
+  health: new RateLimiter({
+    windowMs: 60 * 1e3,
+    // 1 minute
+    maxRequests: 60,
+    message: "Health check rate limit exceeded"
+  })
+};
+
+// server/app.ts
+function getAllowedOrigins() {
+  if (process.env.NODE_ENV !== "production") {
+    return true;
+  }
+  const configuredOrigins = process.env.CORS_ORIGINS;
+  if (configuredOrigins) {
+    return configuredOrigins.split(",").map((origin) => origin.trim()).filter(Boolean);
+  }
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
+  return [
+    process.env.FRONTEND_URL,
+    vercelUrl,
+    "https://elizdehar.com"
+  ].filter((origin) => Boolean(origin));
+}
+function createApp() {
+  const app = express();
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"]
+      }
+    },
+    crossOriginEmbedderPolicy: false
+  }));
+  app.use(cors({
+    origin: getAllowedOrigins(),
+    credentials: true
+  }));
+  app.use(adaptiveCompression());
+  app.use(compressionConfig);
+  app.use(responseSizeMonitor());
+  app.use("/api/", rateLimiters.general.middleware());
+  app.use(express.json({ limit: "10mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+  app.use(requestLogger);
+  return app;
+}
 
 // server/routes.ts
 import { createServer } from "http";
@@ -311,229 +699,6 @@ var notFoundHandler = (req, res) => {
     message: `Route ${req.originalUrl} not found`
   };
   res.status(404).json(response);
-};
-
-// server/utils/cache.ts
-import { LRUCache } from "lru-cache";
-var MemoryCache = class {
-  cache;
-  constructor(maxSize = 1e3, ttl = 5 * 60 * 1e3) {
-    this.cache = new LRUCache({
-      max: maxSize,
-      ttl
-    });
-  }
-  async get(key) {
-    return this.cache.get(key) || null;
-  }
-  async set(key, value, ttl) {
-    if (ttl) {
-      this.cache.set(key, value, { ttl });
-    } else {
-      this.cache.set(key, value);
-    }
-  }
-  async del(key) {
-    this.cache.delete(key);
-  }
-  async exists(key) {
-    return this.cache.has(key);
-  }
-  async clear() {
-    this.cache.clear();
-  }
-  // Additional methods for monitoring
-  size() {
-    return this.cache.size;
-  }
-  keys() {
-    return Array.from(this.cache.keys());
-  }
-};
-var CacheManager = class {
-  cache;
-  keyPrefix;
-  constructor(cache, keyPrefix = "elizdehar:") {
-    this.cache = cache;
-    this.keyPrefix = keyPrefix;
-  }
-  getKey(key) {
-    return `${this.keyPrefix}${key}`;
-  }
-  /**
-   * Get cached value with JSON parsing
-   */
-  async get(key) {
-    try {
-      const value = await this.cache.get(this.getKey(key));
-      return value ? JSON.parse(value) : null;
-    } catch (error) {
-      console.warn(`Cache get error for key ${key}:`, error);
-      return null;
-    }
-  }
-  /**
-   * Set cached value with JSON serialization
-   */
-  async set(key, value, ttl) {
-    try {
-      await this.cache.set(this.getKey(key), JSON.stringify(value), ttl);
-    } catch (error) {
-      console.warn(`Cache set error for key ${key}:`, error);
-    }
-  }
-  /**
-   * Delete cached value
-   */
-  async del(key) {
-    await this.cache.del(this.getKey(key));
-  }
-  /**
-   * Check if key exists
-   */
-  async exists(key) {
-    return await this.cache.exists(this.getKey(key));
-  }
-  /**
-   * Get or set cached value (cache-aside pattern)
-   */
-  async getOrSet(key, fetcher, ttl) {
-    let value = await this.get(key);
-    if (value === null) {
-      value = await fetcher();
-      await this.set(key, value, ttl);
-    }
-    return value;
-  }
-  /**
-   * Invalidate cache by pattern
-   */
-  async invalidatePattern(pattern) {
-    if (this.cache instanceof MemoryCache) {
-      const keys = this.cache.keys();
-      const matchingKeys = keys.filter((key) => key.includes(pattern));
-      for (const key of matchingKeys) {
-        await this.cache.del(key);
-      }
-    }
-  }
-  /**
-   * Warm up cache with data
-   */
-  async warmUp(data, ttl) {
-    const promises = Object.entries(data).map(
-      ([key, value]) => this.set(key, value, ttl)
-    );
-    await Promise.all(promises);
-  }
-};
-var memoryCache = new MemoryCache();
-var cacheManager = new CacheManager(memoryCache);
-
-// server/middleware/rateLimiter.ts
-var RateLimiter = class {
-  config;
-  constructor(config) {
-    this.config = {
-      message: "Too many requests, please try again later",
-      skipSuccessfulRequests: false,
-      skipFailedRequests: false,
-      keyGenerator: (req) => req.ip || "unknown",
-      ...config
-    };
-  }
-  middleware() {
-    return async (req, res, next) => {
-      const key = `rate_limit:${this.config.keyGenerator(req)}`;
-      const now = Date.now();
-      const windowStart = now - this.config.windowMs;
-      try {
-        let rateLimitInfo = await cacheManager.get(key);
-        if (!rateLimitInfo) {
-          rateLimitInfo = {
-            requests: [],
-            resetTime: now + this.config.windowMs
-          };
-        }
-        rateLimitInfo.requests = rateLimitInfo.requests.filter(
-          (timestamp2) => timestamp2 > windowStart
-        );
-        if (rateLimitInfo.requests.length >= this.config.maxRequests) {
-          const resetTime2 = Math.ceil(
-            (rateLimitInfo.resetTime - now) / 1e3
-          );
-          res.status(429).set({
-            "X-RateLimit-Limit": this.config.maxRequests.toString(),
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": resetTime2.toString(),
-            "Retry-After": resetTime2.toString()
-          });
-          return res.json({
-            success: false,
-            message: this.config.message,
-            retryAfter: resetTime2
-          });
-        }
-        rateLimitInfo.requests.push(now);
-        await cacheManager.set(key, rateLimitInfo, this.config.windowMs);
-        const remaining = this.config.maxRequests - rateLimitInfo.requests.length;
-        const resetTime = Math.ceil(
-          (rateLimitInfo.resetTime - now) / 1e3
-        );
-        res.set({
-          "X-RateLimit-Limit": this.config.maxRequests.toString(),
-          "X-RateLimit-Remaining": remaining.toString(),
-          "X-RateLimit-Reset": resetTime.toString()
-        });
-        const originalSend = res.send;
-        const config = this.config;
-        res.send = function(body) {
-          const shouldSkip = res.statusCode < 400 && config.skipSuccessfulRequests || res.statusCode >= 400 && config.skipFailedRequests;
-          if (shouldSkip) {
-            rateLimitInfo.requests.pop();
-            cacheManager.set(key, rateLimitInfo, config.windowMs);
-          }
-          return originalSend.call(this, body);
-        };
-        next();
-      } catch (error) {
-        console.error("Rate limiter error:", error);
-        next();
-      }
-    };
-  }
-};
-var rateLimiters = {
-  // General API rate limiter
-  general: new RateLimiter({
-    windowMs: 15 * 60 * 1e3,
-    // 15 minutes
-    maxRequests: 100,
-    message: "Too many requests from this IP, please try again later"
-  }),
-  // Contact form rate limiter
-  contact: new RateLimiter({
-    windowMs: 60 * 60 * 1e3,
-    // 1 hour
-    maxRequests: 5,
-    message: "Too many contact form submissions, please try again in an hour",
-    skipFailedRequests: true
-  }),
-  // Auth rate limiter (if needed)
-  auth: new RateLimiter({
-    windowMs: 15 * 60 * 1e3,
-    // 15 minutes
-    maxRequests: 10,
-    message: "Too many authentication attempts, please try again later",
-    skipSuccessfulRequests: true
-  }),
-  // Health check rate limiter
-  health: new RateLimiter({
-    windowMs: 60 * 1e3,
-    // 1 minute
-    maxRequests: 60,
-    message: "Health check rate limit exceeded"
-  })
 };
 
 // client/src/utils/sitemap.ts
@@ -862,7 +1027,7 @@ async function registerRoutes(app) {
 }
 
 // server/vite.ts
-import express from "express";
+import express2 from "express";
 import fs from "fs";
 import path2 from "path";
 import { createServer as createViteServer, createLogger } from "vite";
@@ -956,176 +1121,13 @@ function serveStatic(app) {
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
-  app.use(express.static(distPath));
+  app.use(express2.static(distPath));
   app.use("*", (_req, res) => {
     res.sendFile(path2.resolve(distPath, "index.html"));
   });
 }
 
-// server/middleware/requestLogger.ts
-var requestLogger = (req, res, next) => {
-  const start = Date.now();
-  const path3 = req.path;
-  let capturedJsonResponse = void 0;
-  const originalResJson = res.json;
-  res.json = function(bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path3.startsWith("/api")) {
-      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
-      const userAgent = req.get("User-Agent");
-      if (userAgent) {
-        logLine += ` | ${userAgent.substring(0, 50)}`;
-      }
-      if (capturedJsonResponse) {
-        const summary = capturedJsonResponse.success ? "\u2713" : "\u2717";
-        logLine += ` | ${summary} ${capturedJsonResponse.message}`;
-      }
-      if (logLine.length > 150) {
-        logLine = logLine.slice(0, 149) + "\u2026";
-      }
-      console.log(logLine);
-    }
-  });
-  next();
-};
-
-// server/middleware/compression.ts
-import compression from "compression";
-var compressionConfig = compression({
-  // Only compress responses larger than 1kb
-  threshold: 1024,
-  // Compression level (1-9, 6 is default)
-  level: 6,
-  // Memory level (1-9, 8 is default)
-  memLevel: 8,
-  // Custom filter function
-  filter: (req, res) => {
-    if (req.headers["x-no-compression"]) {
-      return false;
-    }
-    if (res.getHeader("content-encoding")) {
-      return false;
-    }
-    const rawContentType = res.getHeader("content-type");
-    const contentType = Array.isArray(rawContentType) ? rawContentType.join(";") : String(rawContentType || "");
-    if (contentType.includes("text/event-stream")) {
-      return false;
-    }
-    if (contentType) {
-      const skipTypes = [
-        "image/",
-        "video/",
-        "audio/",
-        "application/pdf",
-        "application/zip",
-        "application/gzip"
-      ];
-      if (skipTypes.some((type) => contentType.startsWith(type))) {
-        return false;
-      }
-    }
-    return compression.filter(req, res);
-  },
-  // Custom compression strategy
-  strategy: 0,
-  // Z_DEFAULT_STRATEGY equivalent
-  // Window bits (9-15, 15 is default)
-  windowBits: 15,
-  // Chunk size in bytes
-  chunkSize: 16 * 1024
-  // 16kb
-});
-function adaptiveCompression() {
-  return (req, res, next) => {
-    const acceptEncoding = req.headers["accept-encoding"] || "";
-    const supportsBrotli = acceptEncoding.includes("br");
-    const supportsGzip = acceptEncoding.includes("gzip");
-    const supportsDeflate = acceptEncoding.includes("deflate");
-    if (supportsBrotli) {
-      req.headers["x-preferred-compression"] = "br";
-    } else if (supportsGzip) {
-      req.headers["x-preferred-compression"] = "gzip";
-    } else if (supportsDeflate) {
-      req.headers["x-preferred-compression"] = "deflate";
-    }
-    const startTime = Date.now();
-    const originalSend = res.send;
-    res.send = function(body) {
-      const compressionTime = Date.now() - startTime;
-      res.setHeader("X-Compression-Time", compressionTime.toString());
-      if (res.getHeader("content-encoding")) {
-        const originalSize = Buffer.byteLength(Buffer.isBuffer(body) ? body : String(body));
-        const compressedSize = parseInt(res.getHeader("content-length")) || originalSize;
-        const ratio = ((originalSize - compressedSize) / originalSize * 100).toFixed(2);
-        console.log(`Compression: ${originalSize} \u2192 ${compressedSize} bytes (${ratio}% reduction) in ${compressionTime}ms`);
-      }
-      return originalSend.call(this, body);
-    };
-    next();
-  };
-}
-function responseSizeMonitor() {
-  return (req, res, next) => {
-    const originalSend = res.send;
-    res.send = function(body) {
-      const size = Buffer.byteLength(Buffer.isBuffer(body) ? body : String(body));
-      if (size > 1024 * 1024) {
-        console.warn(`Large response detected: ${req.method} ${req.path} - ${(size / 1024 / 1024).toFixed(2)}MB`);
-      }
-      res.setHeader("X-Response-Size", size.toString());
-      return originalSend.call(this, body);
-    };
-    next();
-  };
-}
-
 // server/index.ts
-function getAllowedOrigins() {
-  if (process.env.NODE_ENV !== "production") {
-    return true;
-  }
-  const configuredOrigins = process.env.CORS_ORIGINS;
-  if (configuredOrigins) {
-    return configuredOrigins.split(",").map((origin) => origin.trim()).filter(Boolean);
-  }
-  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null;
-  return [
-    process.env.FRONTEND_URL,
-    vercelUrl,
-    "https://elizdehar.com"
-  ].filter((origin) => Boolean(origin));
-}
-function createApp() {
-  const app = express2();
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "https:"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"]
-      }
-    },
-    crossOriginEmbedderPolicy: false
-  }));
-  app.use(cors({
-    origin: getAllowedOrigins(),
-    credentials: true
-  }));
-  app.use(adaptiveCompression());
-  app.use(compressionConfig);
-  app.use(responseSizeMonitor());
-  app.use("/api/", rateLimiters.general.middleware());
-  app.use(express2.json({ limit: "10mb" }));
-  app.use(express2.urlencoded({ extended: true, limit: "10mb" }));
-  app.use(requestLogger);
-  return app;
-}
 async function startServer() {
   try {
     const app = createApp();
