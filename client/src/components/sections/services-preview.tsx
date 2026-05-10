@@ -2,7 +2,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CheckCircle } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import shoeFactoryImage from "@assets/shoes_factory.jpg";
+import shoeFactoryImage from "@assets/optimized/shoes-factory.jpeg";
 import importExportImage from "@assets/optimized/import-export-facility.jpg";
 import agricultureImage from "@assets/optimized/sustainable-agriculture.jpg";
 
